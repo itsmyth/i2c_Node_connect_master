@@ -1,50 +1,43 @@
 #include <Arduino.h>
+#include <SPI.h>
 
-#include <Wire.h>
-
-#define TARGET_ADDR 0x08 // Target I2C address
+#define SS_PIN D8 // GPIO15 - Chip Select pin
 
 void setup() {
   Serial.begin(115200);
-  Wire.begin();                     // Default pins: D2 (SDA), D1 (SCL)
-  Wire.setClock(100000);            // Standard 100kHz for reliable software I2C
-  Wire.setClockStretchLimit(15000); // Allow target time to hold SCL LOW if busy
+  SPI.begin();                    // Initialize SPI Master
+  pinMode(SS_PIN, OUTPUT);
+  digitalWrite(SS_PIN, HIGH);     // Deselect slave initially
+  SPI.setClockDivider(SPI_CLOCK_DIV16); // Safe communication speed
 
-  Serial.println("\n--- I2C Controller Initialized ---");
+  Serial.println("\n--- SPI Master Initialized ---");
 }
 
 void loop() {
-  String textToSend = "Hello ESP8266! IS";
+  String textToSend = "Hello ESP32-S3! SPI";
+  size_t length = textToSend.length();
 
   Serial.print("Sending to Target: ");
   Serial.println(textToSend);
 
-  // 1. Send the string byte-by-byte with small microsecond pauses
-  Wire.beginTransmission(TARGET_ADDR);
-  for (size_t i = 0; i < textToSend.length(); i++) {
-    Wire.write(textToSend[i]);
+  // --- Transaction 1: Send string to Slave ---
+  digitalWrite(SS_PIN, LOW);
+  for (size_t i = 0; i < length; i++) {
+    SPI.transfer(textToSend[i]);
   }
-  uint8_t error = Wire.endTransmission();
+  digitalWrite(SS_PIN, HIGH);
 
-  if (error != 0) {
-    Serial.print("I2C Transmission Error: ");
-    Serial.println(error);
-  } else {
-    Serial.println("Transmission successful!");
-  }
+  // Allow Slave a moment to process and load response buffer
+  delay(50);
 
-  // Allow Target time to finish receive callback & reverse string
-  delay(150);
-
-  // 2. Request reversed string from Target
-  int bytesToRequest = textToSend.length();
-  int bytesReceived = Wire.requestFrom(TARGET_ADDR, bytesToRequest);
-
+  // --- Transaction 2: Read string back from Slave ---
+  digitalWrite(SS_PIN, LOW);
   String receivedString = "";
-  while (Wire.available()) {
-    char c = Wire.read();
+  for (size_t i = 0; i < length; i++) {
+    char c = SPI.transfer(0x00); // Send dummy byte to clock data back
     receivedString += c;
   }
+  digitalWrite(SS_PIN, HIGH);
 
   Serial.print("Received from Target: ");
   Serial.println(receivedString);
