@@ -1,49 +1,41 @@
 #include <Arduino.h>
+#include <SoftwareSerial.h>
 
-#include <Wire.h>
-
-#define TARGET_ADDR 0x08 // Target I2C address
+// Define SoftwareSerial pins for NodeMCU to talk to ESP32-S3
+// D2 (GPIO4) as RX, D1 (GPIO5) as TX
+SoftwareSerial mySerial(D2, D1); 
 
 void setup() {
-  Serial.begin(115200);
-  Wire.begin();                     // Default pins: D2 (SDA), D1 (SCL)
-  Wire.setClock(100000);            // Standard 100kHz for reliable software I2C
-  Wire.setClockStretchLimit(15000); // Allow target time to hold SCL LOW if busy
-
-  Serial.println("\n--- I2C Controller Initialized ---");
+  Serial.begin(115200);      // For PC Serial Monitor (USB)
+  mySerial.begin(9600);     // For communication with ESP32-S3
+  
+  delay(1000);
+  Serial.println("\n--- Serial Master Initialized ---");
 }
 
 void loop() {
-  String textToSend = "Hello ESP8266! IS";
+  String textToSend = "Hello ESP32-S3! Serial";
 
   Serial.print("Sending to Target: ");
   Serial.println(textToSend);
 
-  // 1. Send the string byte-by-byte with small microsecond pauses
-  Wire.beginTransmission(TARGET_ADDR);
-  for (size_t i = 0; i < textToSend.length(); i++) {
-    Wire.write(textToSend[i]);
-  }
-  uint8_t error = Wire.endTransmission();
+  // 1. Send string to slave via Serial
+  mySerial.println(textToSend);
 
-  if (error != 0) {
-    Serial.print("I2C Transmission Error: ");
-    Serial.println(error);
-  } else {
-    Serial.println("Transmission successful!");
-  }
+  // Allow Target time to receive and echo back
+  delay(100);
 
-  // Allow Target time to finish receive callback & reverse string
-  delay(150);
-
-  // 2. Request reversed string from Target
-  int bytesToRequest = textToSend.length();
-  int bytesReceived = Wire.requestFrom(TARGET_ADDR, bytesToRequest);
-
+  // 2. Read response back from slave
   String receivedString = "";
-  while (Wire.available()) {
-    char c = Wire.read();
-    receivedString += c;
+  unsigned long startTime = millis();
+  
+  // Wait up to 500ms for response
+  while (millis() - startTime < 500) {
+    if (mySerial.available()) {
+      receivedString = mySerial.readStringUntil('\n');
+      receivedString.trim(); // Remove trailing newline/carriage return
+      break;
+    }
   }
 
   Serial.print("Received from Target: ");
