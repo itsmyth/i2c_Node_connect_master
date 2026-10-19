@@ -8,7 +8,7 @@ void setup() {
   SPI.begin();                    // Initialize SPI Master
   pinMode(SS_PIN, OUTPUT);
   digitalWrite(SS_PIN, HIGH);     // Deselect slave initially
-  SPI.setClockDivider(SPI_CLOCK_DIV16); // Safe communication speed
+  SPI.setClockDivider(SPI_CLOCK_DIV64); // Safe communication speed
 
   Serial.println("\n--- SPI Master Initialized ---");
 }
